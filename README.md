@@ -201,10 +201,141 @@ sequenceDiagram
 
 ---
 
-## 9. Visual Aids
-
+## 9. Architecture
 Use sequence diagrams, component diagrams, and C4 modeling:
 
 - **Level 1**: Mobile App + Offline DB
 - **Level 2**: Services inside mobile node
 - **Level 3**: Sync & Leader coordination flow
+
+```mermaid
+graph TD
+    subgraph Clients
+        VolunteerApp[Volunteer Mobile App]
+        LeaderApp[Leader Mobile App]
+    end
+
+    subgraph Edge Layer
+        APIGateway[API Gateway]
+        LoadBalancer[Load Balancer]
+    end
+
+    subgraph Services
+        AuthService[Authentication Service]
+        SyncService[Sync + Conflict Resolver]
+        AidService[Aid Delivery Service]
+        RegistrationService[Biometric Registration Service]
+        AuditService[Audit & Logging Service]
+    end
+
+    subgraph Databases
+        SQLite[Local SQLite DB Mobile]
+        RedisCache[Redis Cache]
+        PostgreSQL[(PostgreSQL - Master DB)]
+        ObjectStorage[S3 / IPFS Media & Attachments]
+    end
+
+    VolunteerApp --> SQLite
+    LeaderApp --> SQLite
+
+    VolunteerApp --> APIGateway
+    LeaderApp --> APIGateway
+
+    APIGateway --> LoadBalancer
+
+    LoadBalancer --> AuthService
+    LoadBalancer --> SyncService
+    LoadBalancer --> AidService
+    LoadBalancer --> RegistrationService
+    LoadBalancer --> AuditService
+
+    SyncService --> RedisCache
+    SyncService --> PostgreSQL
+    AidService --> PostgreSQL
+    RegistrationService --> PostgreSQL
+    AuditService --> PostgreSQL
+    AuditService --> ObjectStorage
+
+```
+## 10. Data infrastructure
+
+```mermaid
+graph TD
+    subgraph Edge Devices
+        MobileDB[Local DB SQLite / CRDT]
+        WAL[Write-Ahead Log]
+        SyncQueue[Sync Queue]
+    end
+
+    subgraph Aggregation Layer
+        LeaderNode[Leader Device]
+        RedisLeader[Redis Leader-side Cache]
+        LogMergeEngine[Conflict Resolver / CRDT Merge]
+    end
+
+    subgraph Cloud Layer
+        IngestionAPI[Cloud Sync API]
+        Kafka[Apache Kafka / Streaming Queue]
+        RawStore[(PostgreSQL - Raw Sync Logs)]
+        CleanStore[(PostgreSQL - Cleaned Records)]
+        S3Media[S3 / IPFS Attachments]
+        BlockchainLedger[Audit Ledger Immutable Logs]
+    end
+
+    subgraph Data Pipeline
+        ETLProcess[ETL / Enrichment Pipeline Airflow/Flink]
+        DataLake[(Snowflake / BigQuery)]
+        BI[BI Dashboard Superset / Metabase]
+    end
+
+    MobileDB --> WAL
+    WAL --> SyncQueue
+    SyncQueue --> LeaderNode
+    LeaderNode --> LogMergeEngine
+    LogMergeEngine --> RedisLeader
+    RedisLeader --> IngestionAPI
+
+    IngestionAPI --> Kafka
+    Kafka --> RawStore
+    Kafka --> S3Media
+    RawStore --> CleanStore
+    CleanStore --> BlockchainLedger
+    CleanStore --> ETLProcess
+    ETLProcess --> DataLake
+    DataLake --> BI
+
+```
+
+## 11. System models
+
+```mermaid
+C4Context
+title Aid Distribution System
+
+Person(volunteer, "Volunteer", "A person that distributes aid")
+Person(aidLeader, "Aid Leader", "A person responsible for overseeing aid distribution")
+System(aidSystem, "Aid Distribution System", "Manages and tracks aid distribution")
+
+Rel(volunteer, aidSystem, "Reports aid distribution")
+Rel(aidLeader, aidSystem, "Approves and supervises aid distribution")
+Rel(aidSystem, volunteer, "Provides updates on aid distribution")
+Rel(aidSystem, aidLeader, "Sends distribution logs")
+```
+
+```mermaid
+C4Container
+title Aid Distribution System - Containers
+
+System_Boundary(aidSystemBoundary, "Aid Distribution System") {
+    Container(mobileDevice, "Mobile Device", "Stores aid distribution data locally", "Mobile App SQLite, Biometric SDK, P2P Sync")
+    Container(leaderDevice, "Leader Device", "Aggregates aid data from volunteers", "Leader App SQLite, Redis, Conflict Resolver")
+    Container(cloudBackend, "Cloud Backend", "Stores and processes aid data centrally", "PostgreSQL, Kafka, Blockchain")
+    Container(fileStorage, "File Storage", "Stores media files like ID images and receipts", "S3/MinIO")
+}
+
+Rel(volunteer, mobileDevice, "Uses for reporting and data entry", "HTTPS")
+Rel(mobileDevice, leaderDevice, "Syncs data with leader device", "P2P")
+Rel(leaderDevice, cloudBackend, "Uploads aggregated data", "HTTPS")
+Rel(cloudBackend, fileStorage, "Stores media files", "HTTPS")
+
+```
