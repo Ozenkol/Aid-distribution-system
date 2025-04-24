@@ -306,7 +306,7 @@ graph TD
 
 ```
 
-## 11. System models
+## 11. C4 models
 
 ```mermaid
 C4Context
@@ -325,6 +325,12 @@ Rel(aidSystem, aidLeader, "Sends distribution logs")
 ```mermaid
 C4Container
 title Aid Distribution System - Containers
+
+Person(volunteer, "Volunteer", "A person that distributes aid")
+Person(aidLeader, "Aid Leader", "A person responsible for overseeing aid distribution")
+System(aidSystem, "Aid Distribution System", "Manages and tracks aid distribution")
+
+
 
 System_Boundary(aidSystemBoundary, "Aid Distribution System") {
     Container(mobileDevice, "Mobile Device", "Stores aid distribution data locally", "Mobile App SQLite, Biometric SDK, P2P Sync")
